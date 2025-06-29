@@ -1,34 +1,48 @@
+// lib/game/components/platform.dart
+
 import 'package:flame/components.dart';
 import 'package:flame/collisions.dart';
-import 'package:flutter/material.dart';
 
 class Platform extends SpriteComponent with CollisionCallbacks {
-  // Platform properties
-  static const double platformWidth = 236;
-  static const double platformHeight = 72;
-  
-  Platform() : super(size: Vector2(platformWidth, platformHeight)) {
-    add(RectangleHitbox());
-    debugMode = true;
-    anchor = Anchor.topLeft;
-  }
-  
+  bool hasBeenPassed = false;
+
+  Platform({required Vector2 position})
+      : super(
+          position: position,
+          size: Vector2(236, 72),
+          anchor: Anchor.topLeft,
+          priority: -1,
+        );
+
   @override
   Future<void> onLoad() async {
     sprite = await Sprite.load(
       'tiles/Mossy Tileset/Mossy - FloatingPlatforms.png',
       srcPosition: Vector2(148, 152),
-      srcSize: Vector2(platformWidth, platformHeight),
+      srcSize: Vector2(size.x, size.y),
     );
-    return super.onLoad();
+
+    // Add collision hitbox
+    final hitbox = RectangleHitbox()
+      ..collisionType = CollisionType.passive
+      ..size = size
+      ..position = Vector2.zero();
+    
+    add(hitbox);
   }
-  
+
   @override
-  void update(double dt) {
-    super.update(dt);
-    final game = findGame();
-    if (game != null && position.x < game.camera.viewport.position.x - 200) {
-      removeFromParent();
-    }
+  void onCollisionStart(
+    Set<Vector2> intersectionPoints,
+    PositionComponent other,
+  ) {
+    super.onCollisionStart(intersectionPoints, other);
   }
-} 
+
+  @override
+  void onCollisionEnd(
+    PositionComponent other,
+  ) {
+    super.onCollisionEnd(other);
+  }
+}

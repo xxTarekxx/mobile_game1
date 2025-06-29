@@ -1,24 +1,25 @@
+// lib/game/components/score_overlay.dart
 import 'package:flutter/material.dart';
 import '../tower_up_game.dart';
 
 class ScoreOverlay extends StatelessWidget {
   final TowerUpGame game;
-  
+
   const ScoreOverlay({super.key, required this.game});
-  
+
   @override
   Widget build(BuildContext context) {
     return Positioned(
       top: 50,
       left: 20,
       child: Container(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(8),
+          color: Colors.black.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(10),
         ),
         child: Text(
-          'Distance: ${game.score.toStringAsFixed(0)}m',
+          'Platforms: ${game.platformsPassed}',
           style: const TextStyle(
             color: Colors.white,
             fontSize: 24,
@@ -28,4 +29,4 @@ class ScoreOverlay extends StatelessWidget {
       ),
     );
   }
-} 
+}

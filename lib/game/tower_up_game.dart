@@ -1,13 +1,15 @@
+import 'package:flame/palette.dart'; // required for FixedResolutionViewport
 import 'package:flame/game.dart';
 import 'package:flame/components.dart';
 import 'package:flame/input.dart';
-import 'package:flame/events.dart';
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
+
 
 import 'components/player.dart';
 import 'components/platform.dart';
 import 'components/background.dart';
+import 'components/plant.dart';
 
 enum GameState { waitingToStart, countdown, playing, gameOver }
 
@@ -15,133 +17,140 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
   late Player player;
   late Background background;
   final List<Platform> platforms = [];
+  final math.Random rand = math.Random();
 
-  // Game state
-  double gameDistance = 0;
-  double score = 0;
-  bool isGameOver = false;
+  int platformsPassed = 0;
   GameState gameState = GameState.waitingToStart;
   int countdownValue = 3;
-  double countdownTimer = 0;
+  Timer countdownTimer = Timer(1, repeat: true);
   TextComponent? overlayText;
 
-  // Platform generation
-  final double minPlatformGapX = 220;
-  final double maxPlatformGapX = 340;
-  final double minPlatformGapY = -60;
-  final double maxPlatformGapY = 60;
-  final double platformMinY = 440;
-  final double platformMaxY = 520;
-  final int initialPlatforms = 10;
-  final double worldSpeed = 200; // pixels per second
+  final double minPlatformGapX = 100;
+  final double maxPlatformGapX = 280;
+  final double minPlatformGapY = -80;
+  final double maxPlatformGapY = 120;
+  double lastPlatformY = 0;
 
-  // Player X position (fixed, 20% from left)
-  double get playerFixedX => size.x * 0.2;
+  double baseSpeed = 220;
+  double get currentSpeed {
+    int milestone = platformsPassed ~/ 25;
+    return baseSpeed * (1 + milestone * 0.2);
+  }
 
-  @override
-  Future<void> onLoad() async {
-    // Add parallax background
-    background = Background();
-    add(background);
+  double get playerFixedX => size.x * 0.25;
 
-    // Generate initial platforms
-    generateInitialPlatforms();
-    
-    // Wait for all platforms to load
-    for (final platform in platforms) {
-      await platform.loaded;
-    }
+@override
+Future<void> onLoad() async {
+  // camera.viewport = FixedResolutionViewport(Vector2(800, 600));
 
-    // Create player, set anchor and position on first platform
-    player = Player();
-    player.anchor = Anchor.bottomLeft;
-    await add(player);
-    await player.loaded;
+  background = Background();
+  add(background);
 
-    final firstPlatform = platforms.first;
-    // Position player on top of the first platform
-    final playerY = firstPlatform.position.y - player.size.y;
-    player.position = Vector2(
-      firstPlatform.position.x,
-      playerY,
-    );
-    player.velocity.y = 0;
-    
-    print('Platform position: ${firstPlatform.position}');
-    print('Player size: ${player.size}');
-    print('Player position: ${player.position}');
+  await resetGame();
+}
 
-    // Add "Tap to Start" overlay
+  void _showOverlay(String text) {
+    _hideOverlay();
     overlayText = TextComponent(
-      text: 'Tap To Start',
+      text: text,
       textRenderer: TextPaint(
         style: const TextStyle(
           color: Colors.white,
-          fontSize: 48,
+          fontSize: 64,
           fontWeight: FontWeight.bold,
+          shadows: [Shadow(blurRadius: 10, color: Colors.black)],
         ),
       ),
       anchor: Anchor.center,
-      position: size / 2,
-      priority: 100,
+      position: camera.viewport.virtualSize / 2,
     );
-    add(overlayText!);
-
-    return super.onLoad();
+    camera.viewport.add(overlayText!);
   }
 
-  void showOverlay([String? text]) {
-    if (overlayText == null) return;
-    if (text != null) overlayText!.text = text;
-    if (overlayText!.parent == null) add(overlayText!);
-  }
-
-  void hideOverlay() {
-    overlayText?.removeFromParent();
-  }
-
-  void startCountdown() {
-    gameState = GameState.countdown;
-    countdownValue = 3;
-    countdownTimer = 1.0;
-    showOverlay('3');
-  }
-
-  void startGame() {
-    gameState = GameState.playing;
-    hideOverlay();
-  }
-
-  void generateInitialPlatforms() {
-    platforms.clear();
-    double x = 100; // Fixed left margin for the first platform
-    double y = 500; // Start lower on the screen
-    final rand = math.Random();
-    for (int i = 0; i < initialPlatforms; i++) {
-      final platform = Platform()..position = Vector2(x, y);
-      add(platform);
-      platforms.add(platform);
-
-      // Randomize gaps
-      x += minPlatformGapX + rand.nextDouble() * (maxPlatformGapX - minPlatformGapX);
-      y += minPlatformGapY + rand.nextDouble() * (maxPlatformGapY - minPlatformGapY);
-      y = y.clamp(platformMinY, platformMaxY);
+  void _hideOverlay() {
+    if (overlayText != null) {
+      camera.viewport.remove(overlayText!);
+      overlayText = null;
     }
   }
 
-  void generateNewPlatform() {
-    final last = platforms.last;
-    final rand = math.Random();
-    double x = last.position.x + minPlatformGapX + rand.nextDouble() * (maxPlatformGapX - minPlatformGapX);
-    double y = last.position.y + minPlatformGapY + rand.nextDouble() * (maxPlatformGapY - minPlatformGapY);
-    y = y.clamp(platformMinY, platformMaxY);
-    final platform = Platform()..position = Vector2(x, y);
+  void _startCountdown() {
+    gameState = GameState.countdown;
+    countdownValue = 3;
+    _showOverlay('$countdownValue');
+    countdownTimer = Timer(1, repeat: true, onTick: () {
+      countdownValue--;
+      if (countdownValue > 0) {
+        _showOverlay('$countdownValue');
+      } else {
+        _startGame();
+        countdownTimer.stop();
+      }
+    });
+    countdownTimer.start();
+  }
+
+  void _startGame() {
+    gameState = GameState.playing;
+    player.isGameActive = true;
+    _hideOverlay();
+  }
+
+  void _generatePlatform(Vector2 position) {
+    final platform = Platform(position: position);
     add(platform);
     platforms.add(platform);
+    lastPlatformY = position.y;
 
-    if (platforms.length > initialPlatforms + 2) {
-      final old = platforms.removeAt(0);
-      old.removeFromParent();
+    if (platformsPassed > 1 && rand.nextDouble() < 0.4) {
+      _addPlantToPlatform(platform);
+    }
+  }
+
+  void _generateNextPlatform() {
+    if (platforms.isEmpty) return;
+    
+    final lastPlatform = platforms.last;
+    final newX = lastPlatform.position.x +
+        lastPlatform.size.x +
+        minPlatformGapX +
+        rand.nextDouble() * (maxPlatformGapX - minPlatformGapX);
+    final newY = (lastPlatformY +
+            minPlatformGapY +
+            rand.nextDouble() * (maxPlatformGapY - minPlatformGapY))
+        .clamp(size.y * 0.3, size.y * 0.8);
+    _generatePlatform(Vector2(newX, newY));
+  }
+
+  void _addPlantToPlatform(Platform platform) {
+    final plantData = _getPlantDataForLevel();
+    final plant = Plant(
+      plantType: plantData['type']!,
+      frameCount: plantData['frames']!,
+      position: Vector2(platform.size.x / 2, 0),
+    );
+    platform.add(plant);
+  }
+
+  Map<String, dynamic> _getPlantDataForLevel() {
+    int level = (platformsPassed ~/ 25) % 7 + 1;
+    switch (level) {
+      case 1:
+        return {'type': 'Plant 1', 'frames': 90};
+      case 2:
+        return {'type': 'Plant 2', 'frames': 90};
+      case 3:
+        return {'type': 'Plant 3', 'frames': 90};
+      case 4:
+        return {'type': 'Plant 4', 'frames': 60};
+      case 5:
+        return {'type': 'Plant 5', 'frames': 60};
+      case 6:
+        return {'type': 'Plant 6', 'frames': 60};
+      case 7:
+        return {'type': 'Plant 7', 'frames': 60};
+      default:
+        return {'type': 'Plant 1', 'frames': 90};
     }
   }
 
@@ -149,127 +158,108 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
   void update(double dt) {
     super.update(dt);
 
-    const double playerYOffset = 8; // Lower the player by 8 pixels for visual alignment
-    final firstPlatform = platforms.first;
-
-    player.isGameActive = (gameState == GameState.playing && !isGameOver);
-
-    if (gameState == GameState.waitingToStart) {
-      showOverlay('Tap To Start');
-      player.position = Vector2(
-        firstPlatform.position.x,
-        firstPlatform.position.y + playerYOffset,
-      );
-      return;
-    }
-
     if (gameState == GameState.countdown) {
-      countdownTimer -= dt;
-      if (countdownTimer <= 0) {
-        countdownValue--;
-        if (countdownValue > 0) {
-          showOverlay(countdownValue.toString());
-          countdownTimer = 1.0;
-        } else {
-          showOverlay('Go!');
-          countdownTimer = 0.7;
-          gameState = GameState.playing;
-        }
-      }
-
-      if (gameState == GameState.playing && countdownTimer <= 0) {
-        hideOverlay();
-      }
-
-      player.position = Vector2(
-        firstPlatform.position.x,
-        firstPlatform.position.y + playerYOffset,
-      );
+      countdownTimer.update(dt);
       return;
     }
 
-    if (gameState != GameState.playing || isGameOver) return;
+    if (gameState != GameState.playing || player.isRemoved) return;
 
-    // Move platforms
     for (final platform in platforms) {
-      platform.position.x -= worldSpeed * dt;
+      platform.position.x -= currentSpeed * dt;
     }
 
-    // Scroll background
-    background.parallax?.baseVelocity = Vector2(worldSpeed * 0.3, 0);
+    background.parallax?.baseVelocity.setValues(currentSpeed * 0.3, 0);
 
-    // Do NOT lock player's X position during gameplay
-    // player.position.x = playerFixedX;
+    platforms
+        .where((p) =>
+            !p.hasBeenPassed && p.position.x + p.size.x < playerFixedX)
+        .forEach((p) {
+      p.hasBeenPassed = true;
+      platformsPassed++;
+    });
 
-    // Increase score based on world movement
-    gameDistance += worldSpeed * dt;
-    score = gameDistance;
+    platforms.removeWhere((p) {
+      if (p.position.x + p.size.x < 0) {
+        remove(p);
+        return true;
+      }
+      return false;
+    });
 
-    // Generate more platforms
-    if (platforms.last.position.x < size.x) {
-      generateNewPlatform();
+    if (platforms.isNotEmpty && platforms.last.position.x < size.x) {
+      _generateNextPlatform();
     }
 
-    // Game over if player falls
-    if (player.position.y > size.y + 100) {
+    if (player.position.y > size.y + player.size.y) {
       gameOver();
     }
   }
 
   @override
   void onTap() {
-    if (gameState == GameState.waitingToStart) {
-      startCountdown();
-      return;
-    }
-
-    if (gameState == GameState.countdown) return;
-
-    if (isGameOver) {
-      restart();
-      return;
-    }
-
-    if (gameState == GameState.playing) {
-      player.jump();
+    switch (gameState) {
+      case GameState.waitingToStart:
+        _startCountdown();
+        break;
+      case GameState.playing:
+        player.jump();
+        break;
+      case GameState.gameOver:
+        resetGame();
+        break;
+      case GameState.countdown:
+        break;
     }
   }
 
   void gameOver() {
-    isGameOver = true;
-    showOverlay('Game Over!\nScore: ${score.toStringAsFixed(0)}\nTap to Restart');
-    print('Game Over! Score: ${score.toStringAsFixed(0)}');
+    if (gameState == GameState.gameOver) return;
+    gameState = GameState.gameOver;
+    player.isGameActive = false;
+    player.velocity = Vector2.zero();
+    _hideOverlay();
+    _showOverlay('Game Over\nTap to Restart');
   }
 
-  void restart() async {
-    removeAll(children.where((component) => component != background).toList());
+  Future<void> resetGame() async {
+    // Remove all existing components
+    children.whereType<Platform>().forEach(remove);
+    children.whereType<Player>().forEach(remove);
+    platforms.clear();
 
-    score = 0;
-    gameDistance = 0;
-    isGameOver = false;
+    platformsPassed = 0;
     gameState = GameState.waitingToStart;
 
-    generateInitialPlatforms();
-
+    // Create player first
     player = Player();
-    player.anchor = Anchor.bottomLeft;
     await add(player);
-    await player.loaded;
 
-    final firstPlatform = platforms.first;
-    // Position player on top of the first platform
-    final playerY = firstPlatform.position.y - player.size.y;
-    player.position = Vector2(
-      firstPlatform.position.x,
-      playerY,
-    );
-    
-    print('Platform position: ${firstPlatform.position}');
-    print('Player size: ${player.size}');
-    print('Player position: ${player.position}');
+    double currentX = playerFixedX;
+    lastPlatformY = size.y * 0.7;
 
-    player.velocity.y = 0;
+    // Generate initial platforms
+    for (int i = 0; i < 5; i++) {
+      _generatePlatform(Vector2(currentX, lastPlatformY));
+      final last = platforms.last;
+      currentX = last.position.x + last.size.x + 150;
+      lastPlatformY = (last.position.y +
+              minPlatformGapY / 2 +
+              rand.nextDouble() * (maxPlatformGapY - minPlatformGapY / 2))
+          .clamp(size.y * 0.3, size.y * 0.8);
+    }
 
-    showOverlay('Tap To Start');
+    // Wait a frame to ensure all platforms are properly loaded
+    await Future.delayed(const Duration(milliseconds: 16));
+
+    // Position player on the first platform
+    if (platforms.isNotEmpty) {
+      final firstPlatform = platforms.first;
+      player.position = Vector2(playerFixedX, firstPlatform.position.y - 1);
+      player.isOnGround = true;
+      player.velocity = Vector2.zero();
+    }
+
+    _showOverlay('Tap to Start');
   }
 }

@@ -1,123 +1,140 @@
+// lib/game/components/player.dart
+
 import 'package:flame/components.dart';
 import 'package:flame/collisions.dart';
 import 'package:flame/flame.dart';
+import '../tower_up_game.dart';
 import 'platform.dart';
 
-class Player extends SpriteAnimationComponent with CollisionCallbacks {
-  // Physics
+enum PlayerState { idle, walk, jump }
+
+class Player extends SpriteAnimationGroupComponent<PlayerState>
+    with HasGameReference<TowerUpGame>, CollisionCallbacks {
   Vector2 velocity = Vector2.zero();
-  final double gravity = 800;
-  final double jumpForce = -400;
-  final double maxFallSpeed = 600;
-  final double moveSpeed = 200; // pixels per second
+  final double gravity = 950;
+  final double jumpForce = 460;
 
-  // State
   bool isOnGround = false;
-  bool canJump = true;
-
-  // Size (doubled for visibility)
-  static const double playerWidth = 96;
-  static const double playerHeight = 128;
-
   bool isGameActive = false;
-  Platform? currentPlatform;
-  double? lastPlatformX;
+  bool _isCollidingWithPlatform = false;
 
-  Player() : super(size: Vector2(playerWidth, playerHeight)) {
-    debugMode = true;
-    anchor = Anchor.topLeft;
-  }
+  Player()
+      : super(
+          size: Vector2(96, 128),
+          anchor: Anchor.bottomCenter,
+          priority: 1,
+        );
 
   @override
   Future<void> onLoad() async {
-    await super.onLoad();
+    final idleAnim = await _createAnimation(
+        'wizard/BlueWizard/2BlueWizardIdle/Chara - BlueIdle', 20);
+    final walkAnim = await _createAnimation(
+        'wizard/BlueWizard/2BlueWizardWalk/Chara_BlueWalk', 20);
+    final jumpAnim = await _createAnimation(
+        'wizard/BlueWizard/2BlueWizardJump/CharaWizardJump_', 8);
 
-    // Load idle animation
-    final idleFrames = await Flame.images.loadAll([
-      for (int i = 0; i < 20; i++)
-        'wizard/BlueWizard/2BlueWizardIdle/Chara - BlueIdle${i.toString().padLeft(5, '0')}.png',
-    ]);
+    animations = {
+      PlayerState.idle: idleAnim,
+      PlayerState.walk: walkAnim,
+      PlayerState.jump: jumpAnim,
+    };
+    current = PlayerState.idle;
 
-    animation = SpriteAnimation.spriteList(
-      [for (final img in idleFrames) Sprite(img)],
-      stepTime: 0.08,
+    add(
+      RectangleHitbox(
+        position: Vector2(size.x * 0.2, size.y * 0.85),
+        size: Vector2(size.x * 0.6, size.y * 0.15),
+      ),
     );
 
-    // Set size and anchor for correct alignment
-    size = Vector2(playerWidth, playerHeight);
-    anchor = Anchor.bottomLeft;
+    return super.onLoad();
+  }
 
-    // Add a hitbox at the feet
-    add(RectangleHitbox(
-      position: Vector2(16, playerHeight - 18),
-      size: Vector2(playerWidth - 32, 18),
-    ));
+  Future<SpriteAnimation> _createAnimation(String baseName, int frameCount) async {
+    final frames = await Flame.images.loadAll([
+      for (int i = 0; i < frameCount; i++)
+        '${baseName}${i.toString().padLeft(5, '0')}.png',
+    ]);
+    return SpriteAnimation.spriteList(
+      [for (final img in frames) Sprite(img)],
+      stepTime: 0.08,
+    );
   }
 
   @override
   void update(double dt) {
     super.update(dt);
 
-    if (isGameActive) {
-      // Apply gravity
-      velocity.y += gravity * dt;
-      velocity.y = velocity.y.clamp(-double.infinity, maxFallSpeed);
+    isOnGround = _isCollidingWithPlatform;
+    _isCollidingWithPlatform = false;
 
-      // Apply vertical movement
-      position.y += velocity.y * dt;
+    // Lock player's x-position to stay visually in place
+    position.x = game.playerFixedX;
 
-      // Move with platform if standing on one
-      if (isOnGround && currentPlatform != null) {
-        if (lastPlatformX != null) {
-          double dx = currentPlatform!.position.x - lastPlatformX!;
-          position.x += dx;
-        }
-        lastPlatformX = currentPlatform!.position.x;
-      } else {
-        currentPlatform = null;
-        lastPlatformX = null;
-      }
+    if (!isGameActive || game.gameState != GameState.playing) {
+      velocity = Vector2.zero();
+      current = PlayerState.idle;
+      return;
     }
 
-    isOnGround = false;
+    velocity.x = 0;
+
+    // Apply gravity
+    if (!isOnGround) {
+      velocity.y += gravity * dt;
+    }
+
+    position.y += velocity.y * dt;
+
+    // Animate
+    current = isOnGround ? PlayerState.walk : PlayerState.jump;
   }
 
   void jump() {
-    if (canJump && isOnGround) {
-      velocity.y = jumpForce;
+    if (isOnGround && isGameActive && game.gameState == GameState.playing) {
+      velocity.y = -jumpForce;
       isOnGround = false;
-      canJump = false;
-
-      Future.delayed(const Duration(milliseconds: 100), () {
-        canJump = true;
-      });
+      _isCollidingWithPlatform = false;
     }
   }
 
   @override
   void onCollision(Set<Vector2> intersectionPoints, PositionComponent other) {
     super.onCollision(intersectionPoints, other);
-    // print('Collision with: $other');
 
-    if (other is Platform && velocity.y > 0) {
-      final double platformTop = other.position.y;
-      final double platformLeft = other.position.x;
-      final double platformRight = other.position.x + other.size.x;
-      final double feetLeft = position.x + 8;
-      final double feetRight = position.x + size.x - 8;
-
-      final bool horizontallyOverlaps =
-          feetRight > platformLeft && feetLeft < platformRight;
-
-      if (horizontallyOverlaps && position.y + size.y <= platformTop + 40) {
-        // Snap player to platform
-        position.y = platformTop - size.y;
+    if (other is Platform && velocity.y >= 0) {
+      // Check if player is above the platform
+      final playerBottom = position.y;
+      final platformTop = other.position.y;
+      
+      if (playerBottom >= platformTop && playerBottom <= platformTop + 10) {
         velocity.y = 0;
-        isOnGround = true;
-        currentPlatform = other;
-        lastPlatformX = other.position.x;
-        // print('Player landed on platform!');
+        position.y = platformTop;
+        _isCollidingWithPlatform = true;
       }
+    }
+  }
+
+  @override
+  void onCollisionStart(
+    Set<Vector2> intersectionPoints,
+    PositionComponent other,
+  ) {
+    super.onCollisionStart(intersectionPoints, other);
+    
+    if (other is Platform && velocity.y >= 0) {
+      _isCollidingWithPlatform = true;
+    }
+  }
+
+  @override
+  void onCollisionEnd(PositionComponent other) {
+    super.onCollisionEnd(other);
+    
+    if (other is Platform) {
+      // Only set to false if we're not colliding with any other platforms
+      _isCollidingWithPlatform = false;
     }
   }
 }

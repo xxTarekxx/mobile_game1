@@ -1,3 +1,4 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:flame/game.dart';
 import 'game/tower_up_game.dart';
@@ -14,10 +15,8 @@ class TowerUpApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Tower Up',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
+      theme: ThemeData.dark(),
+      debugShowCheckedModeBanner: false,
       home: const GameScreen(),
     );
   }
@@ -32,9 +31,9 @@ class GameScreen extends StatelessWidget {
       body: GameWidget<TowerUpGame>(
         game: TowerUpGame(),
         overlayBuilderMap: {
-          'score': (context, game) => ScoreOverlay(game: game),
+          'ScoreOverlay': (context, game) => ScoreOverlay(game: game),
         },
-        initialActiveOverlays: const ['score'],
+        initialActiveOverlays: const ['ScoreOverlay'],
       ),
     );
   }

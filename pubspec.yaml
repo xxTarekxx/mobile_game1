@@ -64,16 +64,26 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/images/
-    - assets/audio/
+    - assets/images/tiles/
     - assets/images/tiles/Mossy Tileset/
+    - assets/images/wizard/
+    - assets/images/wizard/BlueWizard/
     - assets/images/wizard/BlueWizard/2BlueWizardIdle/
     - assets/images/wizard/BlueWizard/2BlueWizardWalk/
     - assets/images/wizard/BlueWizard/2BlueWizardJump/
-    - assets/images/slimes/
     - assets/images/plants/
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+    - assets/images/plants/Plant Animations/
+    - assets/images/plants/Plant Animations/Plant 1/
+    - assets/images/plants/Plant Animations/Plant 2/
+    - assets/images/plants/Plant Animations/Plant 3/
+    - assets/images/plants/Plant Animations/Plant 4/
+    - assets/images/plants/Plant Animations/Plant 5/
+    - assets/images/plants/Plant Animations/Plant 6/
+    - assets/images/plants/Plant Animations/Plant 7/
+    - assets/images/slimes/
+    - assets/images/slimes/SlimeGreen/
+    - assets/images/slimes/SlimeOrange/
+    - assets/audio/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
