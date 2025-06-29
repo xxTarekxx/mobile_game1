@@ -223,9 +223,11 @@ Future<void> onLoad() async {
   }
 
   Future<void> resetGame() async {
-    // Remove all existing components
-    children.whereType<Platform>().forEach(remove);
-    children.whereType<Player>().forEach(remove);
+    // Remove all existing platforms and player
+    final platformsToRemove = children.whereType<Platform>().toList();
+    final playersToRemove = children.whereType<Player>().toList();
+    removeAll(platformsToRemove);
+    removeAll(playersToRemove);
     platforms.clear();
 
     platformsPassed = 0;
