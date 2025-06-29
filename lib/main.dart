@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:flame/game.dart';
 import 'game/tower_up_game.dart';
-import 'game/components/score_overlay.dart';
 
 void main() {
   runApp(const TowerUpApp());
@@ -30,10 +29,6 @@ class GameScreen extends StatelessWidget {
     return Scaffold(
       body: GameWidget<TowerUpGame>(
         game: TowerUpGame(),
-        overlayBuilderMap: {
-          'ScoreOverlay': (context, game) => ScoreOverlay(game: game),
-        },
-        initialActiveOverlays: const ['ScoreOverlay'],
       ),
     );
   }

@@ -28,7 +28,7 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
   final double minPlatformGapX = 100;
   final double maxPlatformGapX = 280;
   final double minPlatformGapY = -80;
-  final double maxPlatformGapY = 120;
+  double maxPlatformGapY = 120; // Will be set in onLoad based on jump height
   double lastPlatformY = 0;
 
   double baseSpeed = 220;
@@ -39,12 +39,37 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
 
   double get playerFixedX => size.x * 0.25;
 
+  late TextComponent scoreText;
+
 @override
 Future<void> onLoad() async {
   // camera.viewport = FixedResolutionViewport(Vector2(800, 600));
 
   background = Background();
   add(background);
+
+  // Calculate max jump height and set maxPlatformGapY
+  final double jumpForce = 460; // Should match Player.jumpForce
+  final double gravity = 950;   // Should match Player.gravity
+  final double maxJumpHeight = (jumpForce * jumpForce) / (2 * gravity);
+  maxPlatformGapY = maxJumpHeight * 0.8; // 80% of max jump height for safety
+
+  // Add score text
+  scoreText = TextComponent(
+    text: 'Platforms: 0',
+    position: Vector2(20, 48),
+    anchor: Anchor.topLeft,
+    textRenderer: TextPaint(
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 24,
+        fontWeight: FontWeight.bold,
+        shadows: [Shadow(blurRadius: 4, color: Colors.black)],
+      ),
+    ),
+    priority: 100,
+  );
+  add(scoreText);
 
   await resetGame();
 }
@@ -158,6 +183,9 @@ Future<void> onLoad() async {
   void update(double dt) {
     super.update(dt);
 
+    // Update score text
+    scoreText.text = 'Platforms: $platformsPassed';
+
     if (gameState == GameState.countdown) {
       countdownTimer.update(dt);
       return;
@@ -230,6 +258,9 @@ Future<void> onLoad() async {
     removeAll(playersToRemove);
     platforms.clear();
 
+    // Wait a frame to ensure removals are processed
+    await Future.delayed(const Duration(milliseconds: 16));
+
     platformsPassed = 0;
     gameState = GameState.waitingToStart;
 
@@ -257,7 +288,7 @@ Future<void> onLoad() async {
     // Position player on the first platform
     if (platforms.isNotEmpty) {
       final firstPlatform = platforms.first;
-      player.position = Vector2(playerFixedX, firstPlatform.position.y - 1);
+      player.position = Vector2(playerFixedX, firstPlatform.position.y);
       player.isOnGround = true;
       player.velocity = Vector2.zero();
     }

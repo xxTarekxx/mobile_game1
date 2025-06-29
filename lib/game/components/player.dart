@@ -72,10 +72,16 @@ class Player extends SpriteAnimationGroupComponent<PlayerState>
     // Lock player's x-position to stay visually in place
     position.x = game.playerFixedX;
 
+    // Prevent falling at the start if visually on the platform
     if (!isGameActive || game.gameState != GameState.playing) {
       velocity = Vector2.zero();
       current = PlayerState.idle;
       return;
+    }
+
+    // If player is visually on the platform at the start, keep them grounded
+    if (isOnGround && velocity.y > 0) {
+      velocity.y = 0;
     }
 
     velocity.x = 0;
