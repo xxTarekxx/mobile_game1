@@ -1,15 +1,14 @@
-import 'package:flame/palette.dart'; // required for FixedResolutionViewport
-import 'package:flame/game.dart';
-import 'package:flame/components.dart';
-import 'package:flame/input.dart';
-import 'package:flutter/material.dart';
 import 'dart:math' as math;
 
+import 'package:flame/components.dart';
+import 'package:flame/game.dart';
+import 'package:flame/input.dart';
+import 'package:flutter/material.dart';
 
-import 'components/player.dart';
-import 'components/platform.dart';
 import 'components/background.dart';
 import 'components/plant.dart';
+import 'components/platform.dart';
+import 'components/player.dart';
 
 enum GameState { waitingToStart, countdown, playing, gameOver }
 
@@ -17,7 +16,8 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
   late Player player;
   late Background background;
   final List<Platform> platforms = [];
-  final math.Random rand = math.Random();
+  int sessionSeed = 0;
+  math.Random rand = math.Random();
 
   int platformsPassed = 0;
   GameState gameState = GameState.waitingToStart;
@@ -41,38 +41,42 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
 
   late TextComponent scoreText;
 
-@override
-Future<void> onLoad() async {
-  // camera.viewport = FixedResolutionViewport(Vector2(800, 600));
+  @override
+  Future<void> onLoad() async {
+    // camera.viewport = FixedResolutionViewport(Vector2(800, 600));
 
-  background = Background();
-  add(background);
+    background = Background();
+    add(background);
 
-  // Calculate max jump height and set maxPlatformGapY
-  final double jumpForce = 460; // Should match Player.jumpForce
-  final double gravity = 950;   // Should match Player.gravity
-  final double maxJumpHeight = (jumpForce * jumpForce) / (2 * gravity);
-  maxPlatformGapY = maxJumpHeight * 0.8; // 80% of max jump height for safety
+    // Generate a new session seed on app load
+    sessionSeed = DateTime.now().millisecondsSinceEpoch;
+    rand = math.Random(sessionSeed);
 
-  // Add score text
-  scoreText = TextComponent(
-    text: 'Platforms: 0',
-    position: Vector2(20, 48),
-    anchor: Anchor.topLeft,
-    textRenderer: TextPaint(
-      style: const TextStyle(
-        color: Colors.white,
-        fontSize: 24,
-        fontWeight: FontWeight.bold,
-        shadows: [Shadow(blurRadius: 4, color: Colors.black)],
+    // Calculate max jump height and set maxPlatformGapY
+    final double jumpForce = 460; // Should match Player.jumpForce
+    final double gravity = 950; // Should match Player.gravity
+    final double maxJumpHeight = (jumpForce * jumpForce) / (2 * gravity);
+    maxPlatformGapY = maxJumpHeight * 0.8; // 80% of max jump height for safety
+
+    // Add score text
+    scoreText = TextComponent(
+      text: 'Platforms: 0',
+      position: Vector2(20, 48),
+      anchor: Anchor.topLeft,
+      textRenderer: TextPaint(
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+          shadows: [Shadow(blurRadius: 4, color: Colors.black)],
+        ),
       ),
-    ),
-    priority: 100,
-  );
-  add(scoreText);
+      priority: 100,
+    );
+    add(scoreText);
 
-  await resetGame();
-}
+    await resetGame();
+  }
 
   void _showOverlay(String text) {
     _hideOverlay();
@@ -87,14 +91,15 @@ Future<void> onLoad() async {
         ),
       ),
       anchor: Anchor.center,
-      position: camera.viewport.virtualSize / 2,
+      position: size / 2,
+      priority: 1000,
     );
-    camera.viewport.add(overlayText!);
+    add(overlayText!);
   }
 
   void _hideOverlay() {
     if (overlayText != null) {
-      camera.viewport.remove(overlayText!);
+      remove(overlayText!);
       overlayText = null;
     }
   }
@@ -103,15 +108,19 @@ Future<void> onLoad() async {
     gameState = GameState.countdown;
     countdownValue = 3;
     _showOverlay('$countdownValue');
-    countdownTimer = Timer(1, repeat: true, onTick: () {
-      countdownValue--;
-      if (countdownValue > 0) {
-        _showOverlay('$countdownValue');
-      } else {
-        _startGame();
-        countdownTimer.stop();
-      }
-    });
+    countdownTimer = Timer(
+      1,
+      repeat: true,
+      onTick: () {
+        countdownValue--;
+        if (countdownValue > 0) {
+          _showOverlay('$countdownValue');
+        } else {
+          _startGame();
+          countdownTimer.stop();
+        }
+      },
+    );
     countdownTimer.start();
   }
 
@@ -134,16 +143,40 @@ Future<void> onLoad() async {
 
   void _generateNextPlatform() {
     if (platforms.isEmpty) return;
-    
     final lastPlatform = platforms.last;
-    final newX = lastPlatform.position.x +
-        lastPlatform.size.x +
+
+    // Calculate the right edge (last possible jump point) of the previous platform
+    final prevTopRight = Vector2(
+      lastPlatform.position.x + lastPlatform.size.x,
+      lastPlatform.position.y,
+    );
+
+    // Calculate max jump physics
+    final double jumpForce = 460; // Should match Player.jumpForce
+    final double gravity = 950; // Should match Player.gravity
+    final double playerSpeed = currentSpeed; // Use current horizontal speed
+    final double t_up = jumpForce / gravity;
+    final double t_total = 2 * t_up;
+    final double max_dx = playerSpeed * t_total;
+
+    // Random horizontal gap within allowed range
+    final dx =
         minPlatformGapX +
-        rand.nextDouble() * (maxPlatformGapX - minPlatformGapX);
-    final newY = (lastPlatformY +
-            minPlatformGapY +
-            rand.nextDouble() * (maxPlatformGapY - minPlatformGapY))
-        .clamp(size.y * 0.3, size.y * 0.8);
+        rand.nextDouble() *
+            (math.min(maxPlatformGapX, max_dx) - minPlatformGapX);
+    final newX = prevTopRight.x + dx;
+
+    // For this dx, calculate the max vertical difference the player can reach
+    // The jump parabola: y = v0y * t - 0.5 * g * t^2
+    // t = dx / playerSpeed
+    final t = dx / playerSpeed;
+    final max_dy = jumpForce * t - 0.5 * gravity * t * t;
+
+    // Clamp newY so the vertical gap is always reachable
+    double newY = lastPlatform.position.y - max_dy;
+    // Optionally, clamp to screen bounds
+    newY = newY.clamp(size.y * 0.3, size.y * 0.8);
+
     _generatePlatform(Vector2(newX, newY));
   }
 
@@ -161,19 +194,22 @@ Future<void> onLoad() async {
     int level = (platformsPassed ~/ 25) % 7 + 1;
     switch (level) {
       case 1:
-        return {'type': 'Plant 1', 'frames': 90};
+        return {
+          'type': 'Plant 1',
+          'frames': 90,
+        }; // Plant1 has 90 frames (00000-00089)
       case 2:
-        return {'type': 'Plant 2', 'frames': 90};
+        return {'type': 'Plant 2', 'frames': 90}; // Plant2 has 90 frames
       case 3:
-        return {'type': 'Plant 3', 'frames': 90};
+        return {'type': 'Plant 3', 'frames': 90}; // Plant3 has 90 frames
       case 4:
-        return {'type': 'Plant 4', 'frames': 60};
+        return {'type': 'Plant 4', 'frames': 60}; // Plant4 has 60 frames
       case 5:
-        return {'type': 'Plant 5', 'frames': 60};
+        return {'type': 'Plant 5', 'frames': 60}; // Plant5 has 60 frames
       case 6:
-        return {'type': 'Plant 6', 'frames': 60};
+        return {'type': 'Plant 6', 'frames': 60}; // Plant6 has 60 frames
       case 7:
-        return {'type': 'Plant 7', 'frames': 60};
+        return {'type': 'Plant 7', 'frames': 60}; // Plant7 has 60 frames
       default:
         return {'type': 'Plant 1', 'frames': 90};
     }
@@ -197,15 +233,16 @@ Future<void> onLoad() async {
       platform.position.x -= currentSpeed * dt;
     }
 
-    background.parallax?.baseVelocity.setValues(currentSpeed * 0.3, 0);
+    background.parallax?.baseVelocity.setValues(currentSpeed * 0.15, 0);
 
     platforms
-        .where((p) =>
-            !p.hasBeenPassed && p.position.x + p.size.x < playerFixedX)
+        .where(
+          (p) => !p.hasBeenPassed && p.position.x + p.size.x < playerFixedX,
+        )
         .forEach((p) {
-      p.hasBeenPassed = true;
-      platformsPassed++;
-    });
+          p.hasBeenPassed = true;
+          platformsPassed++;
+        });
 
     platforms.removeWhere((p) {
       if (p.position.x + p.size.x < 0) {
@@ -251,15 +288,38 @@ Future<void> onLoad() async {
   }
 
   Future<void> resetGame() async {
-    // Remove all existing platforms and player
-    final platformsToRemove = children.whereType<Platform>().toList();
-    final playersToRemove = children.whereType<Player>().toList();
-    removeAll(platformsToRemove);
-    removeAll(playersToRemove);
-    platforms.clear();
+    // Re-initialize rand with the same session seed for consistent platform generation
+    rand = math.Random(sessionSeed);
 
-    // Wait a frame to ensure removals are processed
-    await Future.delayed(const Duration(milliseconds: 16));
+    // Ensure background and score text are present
+    if (!children.contains(background)) {
+      add(background);
+    }
+    if (!children.contains(scoreText)) {
+      add(scoreText);
+    }
+
+    // Remove all children except background, score text, and overlay
+    final childrenToRemove = children
+        .where(
+          (child) =>
+              child != background &&
+              child != scoreText &&
+              child != overlayText &&
+              child is! Background &&
+              child is! TextComponent,
+        )
+        .toList();
+
+    for (final child in childrenToRemove) {
+      remove(child);
+    }
+
+    // Clear platforms list completely
+    platforms.clear();
+    debugPrint(
+      'After selective removal: children = ${children.length}, platforms list = ${platforms.length}',
+    );
 
     platformsPassed = 0;
     gameState = GameState.waitingToStart;
@@ -276,10 +336,11 @@ Future<void> onLoad() async {
       _generatePlatform(Vector2(currentX, lastPlatformY));
       final last = platforms.last;
       currentX = last.position.x + last.size.x + 150;
-      lastPlatformY = (last.position.y +
-              minPlatformGapY / 2 +
-              rand.nextDouble() * (maxPlatformGapY - minPlatformGapY / 2))
-          .clamp(size.y * 0.3, size.y * 0.8);
+      lastPlatformY =
+          (last.position.y +
+                  minPlatformGapY / 2 +
+                  rand.nextDouble() * (maxPlatformGapY - minPlatformGapY / 2))
+              .clamp(size.y * 0.3, size.y * 0.8);
     }
 
     // Wait a frame to ensure all platforms are properly loaded
@@ -293,6 +354,7 @@ Future<void> onLoad() async {
       player.velocity = Vector2.zero();
     }
 
+    // Show the tap to start overlay
     _showOverlay('Tap to Start');
   }
 }
