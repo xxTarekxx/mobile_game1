@@ -1,8 +1,11 @@
 // lib/game/components/player.dart
 
-import 'package:flame/components.dart';
+import 'dart:ui' as ui;
+
 import 'package:flame/collisions.dart';
+import 'package:flame/components.dart';
 import 'package:flame/flame.dart';
+
 import '../tower_up_game.dart';
 import 'platform.dart';
 
@@ -19,20 +22,22 @@ class Player extends SpriteAnimationGroupComponent<PlayerState>
   bool _isCollidingWithPlatform = false;
 
   Player()
-      : super(
-          size: Vector2(96, 128),
-          anchor: Anchor.bottomCenter,
-          priority: 1,
-        );
+    : super(size: Vector2(96, 128), anchor: Anchor.bottomCenter, priority: 1);
 
   @override
   Future<void> onLoad() async {
-    final idleAnim = await _createAnimation(
-        'wizard/BlueWizard/2BlueWizardIdle/Chara - BlueIdle', 20);
-    final walkAnim = await _createAnimation(
-        'wizard/BlueWizard/2BlueWizardWalk/Chara_BlueWalk', 20);
-    final jumpAnim = await _createAnimation(
-        'wizard/BlueWizard/2BlueWizardJump/CharaWizardJump_', 8);
+    final idleAnim = await _loadAnimation(
+      'wizard/BlueWizard/2BlueWizardIdle/Chara - BlueIdle',
+      20,
+    );
+    final walkAnim = await _loadAnimation(
+      'wizard/BlueWizard/2BlueWizardWalk/Chara_BlueWalk',
+      20,
+    );
+    final jumpAnim = await _loadAnimation(
+      'wizard/BlueWizard/2BlueWizardJump/CharaWizardJump_',
+      8,
+    );
 
     animations = {
       PlayerState.idle: idleAnim,
@@ -51,14 +56,36 @@ class Player extends SpriteAnimationGroupComponent<PlayerState>
     return super.onLoad();
   }
 
-  Future<SpriteAnimation> _createAnimation(String baseName, int frameCount) async {
-    final frames = await Flame.images.loadAll([
-      for (int i = 0; i < frameCount; i++)
-        '${baseName}${i.toString().padLeft(5, '0')}.png',
-    ]);
+  Future<SpriteAnimation> _loadAnimation(
+    String baseName,
+    int frameCount,
+  ) async {
+    final frames = <ui.Image>[];
+    final useWebp =
+        baseName.contains('BlueIdle') ||
+        baseName.contains('CharaWizardJump') ||
+        baseName.contains('DashBlue') ||
+        baseName.contains('Dash3') ||
+        baseName.contains('BlueWizardDash') ||
+        baseName.contains('Chara_BlueWalk');
+    for (int i = 0; i < frameCount; i++) {
+      if (useWebp) {
+        final webpPath = '$baseName${i.toString().padLeft(5, '0')}.webp';
+        final pngPath = '$baseName${i.toString().padLeft(5, '0')}.png';
+        try {
+          frames.add(await Flame.images.load(webpPath));
+        } catch (_) {
+          frames.add(await Flame.images.load(pngPath));
+        }
+      } else {
+        final pngPath = '$baseName${i.toString().padLeft(5, '0')}.png';
+        frames.add(await Flame.images.load(pngPath));
+      }
+    }
     return SpriteAnimation.spriteList(
       [for (final img in frames) Sprite(img)],
-      stepTime: 0.08,
+      stepTime: 0.1,
+      loop: true,
     );
   }
 
@@ -113,7 +140,7 @@ class Player extends SpriteAnimationGroupComponent<PlayerState>
       // Check if player is above the platform
       final playerBottom = position.y;
       final platformTop = other.position.y;
-      
+
       if (playerBottom >= platformTop && playerBottom <= platformTop + 10) {
         velocity.y = 0;
         position.y = platformTop;
@@ -128,7 +155,7 @@ class Player extends SpriteAnimationGroupComponent<PlayerState>
     PositionComponent other,
   ) {
     super.onCollisionStart(intersectionPoints, other);
-    
+
     if (other is Platform && velocity.y >= 0) {
       _isCollidingWithPlatform = true;
     }
@@ -137,7 +164,7 @@ class Player extends SpriteAnimationGroupComponent<PlayerState>
   @override
   void onCollisionEnd(PositionComponent other) {
     super.onCollisionEnd(other);
-    
+
     if (other is Platform) {
       // Only set to false if we're not colliding with any other platforms
       _isCollidingWithPlatform = false;

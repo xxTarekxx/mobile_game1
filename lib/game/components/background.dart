@@ -1,5 +1,7 @@
 // lib/game/components/background.dart
 
+import 'dart:io';
+
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 import 'package:flame/parallax.dart';
@@ -11,26 +13,34 @@ class Background extends ParallaxComponent {
   @override
   Future<void> onLoad() async {
     try {
-      parallax = await Parallax.load(
-        [
-          // Background layers in order (back to front)
-          ParallaxImageData(
-            'tiles/Mossy Tileset/Mossy - BackgroundDecoration.png',
-          ),
-          ParallaxImageData('tiles/Mossy Tileset/Mossy - MossyHills.png'),
-          ParallaxImageData(
-            'tiles/Mossy Tileset/Mossy - Decorations&Hazards.png',
-          ),
-          ParallaxImageData('tiles/Mossy Tileset/Mossy - Hanging Plants.png'),
-        ],
-        baseVelocity: Vector2(8, 0), // Much slower for more atmospheric effect
-        velocityMultiplierDelta: Vector2(
-          1.3,
-          1.0,
-        ), // Slightly less dramatic parallax
-        fill: LayerFill.height,
-        filterQuality: FilterQuality.none, // Better performance
-      );
+      // Use a single webp background if it exists
+      final webpBackground = File('assets/images/background.webp');
+      if (await webpBackground.exists()) {
+        parallax = await Parallax.load(
+          [ParallaxImageData('background.webp')],
+          baseVelocity: Vector2(8, 0),
+          velocityMultiplierDelta: Vector2(1.3, 1.0),
+          fill: LayerFill.height,
+          filterQuality: FilterQuality.none,
+        );
+      } else {
+        parallax = await Parallax.load(
+          [
+            ParallaxImageData(
+              'tiles/Mossy Tileset/Mossy - BackgroundDecoration.png',
+            ),
+            ParallaxImageData('tiles/Mossy Tileset/Mossy - MossyHills.png'),
+            ParallaxImageData(
+              'tiles/Mossy Tileset/Mossy - Decorations&Hazards.png',
+            ),
+            ParallaxImageData('tiles/Mossy Tileset/Mossy - Hanging Plants.png'),
+          ],
+          baseVelocity: Vector2(8, 0),
+          velocityMultiplierDelta: Vector2(1.3, 1.0),
+          fill: LayerFill.height,
+          filterQuality: FilterQuality.none,
+        );
+      }
 
       // Add a dark overlay for atmospheric effect
       final game = parent as FlameGame;

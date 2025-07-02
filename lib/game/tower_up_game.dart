@@ -80,41 +80,120 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
 
   void _showOverlay(String text) {
     _hideOverlay();
-    overlayText = TextComponent(
-      text: text,
-      textRenderer: TextPaint(
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 64,
-          fontWeight: FontWeight.bold,
-          shadows: [Shadow(blurRadius: 10, color: Colors.black)],
-        ),
-      ),
-      anchor: Anchor.center,
-      position: size / 2,
-      priority: 1000,
+
+    // Add a modern gradient background overlay
+    final backgroundOverlay = RectangleComponent(
+      size: size,
+      paint: Paint()..color = const Color(0xCC000000),
+      priority: 999,
     );
-    add(overlayText!);
+    add(backgroundOverlay);
+
+    final isGameOver = text.contains('GAME OVER');
+    final centerX = size.x / 2;
+    final centerY = size.y / 2;
+
+    if (isGameOver) {
+      // Render 'GAME OVER' and 'Tap to Retry' as separate components
+      final gameOverText = TextComponent(
+        text: 'GAME OVER',
+        textRenderer: TextPaint(
+          style: TextStyle(
+            color: const Color(0xFFFF6B6B),
+            fontSize: 56.0,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 2.0,
+            shadows: [
+              Shadow(blurRadius: 12, color: Colors.black.withOpacity(0.8)),
+              Shadow(blurRadius: 6, color: Colors.black.withOpacity(0.6)),
+            ],
+          ),
+        ),
+        anchor: Anchor.center,
+        position: Vector2(centerX, centerY - 40),
+        priority: 1000,
+      );
+      add(gameOverText);
+
+      final retryText = TextComponent(
+        text: 'Tap to Retry',
+        textRenderer: TextPaint(
+          style: TextStyle(
+            color: const Color(0xFFFF6B6B),
+            fontSize: 36.0,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.5,
+            shadows: [
+              Shadow(blurRadius: 8, color: Colors.black.withOpacity(0.7)),
+            ],
+          ),
+        ),
+        anchor: Anchor.center,
+        position: Vector2(centerX, centerY + 40),
+        priority: 1000,
+      );
+      add(retryText);
+    } else {
+      // For other overlays, use the default style
+      overlayText = TextComponent(
+        text: text,
+        textRenderer: TextPaint(
+          style: TextStyle(
+            color: const Color(0xFF4ECDC4),
+            fontSize: 48.0,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 2.0,
+            shadows: [
+              Shadow(blurRadius: 12, color: Colors.black.withOpacity(0.8)),
+              Shadow(blurRadius: 6, color: Colors.black.withOpacity(0.6)),
+            ],
+          ),
+        ),
+        anchor: Anchor.center,
+        position: Vector2(centerX, centerY),
+        priority: 1000,
+      );
+      add(overlayText!);
+    }
+    print(
+      'Showing overlay: "$text" at center: ($centerX, $centerY), screen size: $size',
+    );
   }
 
   void _hideOverlay() {
     if (overlayText != null) {
       remove(overlayText!);
       overlayText = null;
+      print('Hiding overlay');
     }
+
+    // Remove ALL overlay-related components (backgrounds, glows, shadows)
+    final overlayComponents = children
+        .where(
+          (child) =>
+              (child is RectangleComponent && child.priority == 999) ||
+              (child is TextComponent && child.priority >= 999),
+        )
+        .toList();
+
+    for (final component in overlayComponents) {
+      remove(component);
+    }
+
+    print('Cleaned up ${overlayComponents.length} overlay components');
   }
 
   void _startCountdown() {
     gameState = GameState.countdown;
     countdownValue = 3;
-    _showOverlay('$countdownValue');
+    _showCountdownOverlay('$countdownValue');
     countdownTimer = Timer(
       1,
       repeat: true,
       onTick: () {
         countdownValue--;
         if (countdownValue > 0) {
-          _showOverlay('$countdownValue');
+          _showCountdownOverlay('$countdownValue');
         } else {
           _startGame();
           countdownTimer.stop();
@@ -124,10 +203,90 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
     countdownTimer.start();
   }
 
+  void _showCountdownOverlay(String text) {
+    _hideOverlay();
+
+    // Add a subtle background for countdown
+    final backgroundOverlay = RectangleComponent(
+      size: size,
+      paint: Paint()
+        ..color = const Color(0x99000000), // Lighter background for countdown
+      priority: 999,
+    );
+    add(backgroundOverlay);
+
+    // Calculate perfect center position
+    final centerX = size.x / 2;
+    final centerY = size.y / 2;
+
+    // Create modern countdown text
+    overlayText = TextComponent(
+      text: text,
+      textRenderer: TextPaint(
+        style: TextStyle(
+          color: const Color(0xFFFFD93D), // Bright yellow for countdown
+          fontSize: 120.0, // Large and bold
+          fontWeight: FontWeight.w900,
+          letterSpacing: 4.0,
+          shadows: [
+            Shadow(blurRadius: 15, color: Colors.black.withOpacity(0.9)),
+            Shadow(blurRadius: 8, color: Colors.black.withOpacity(0.7)),
+          ],
+        ),
+      ),
+      anchor: Anchor.center,
+      position: Vector2(centerX, centerY), // Perfect center
+      priority: 1000,
+    );
+    add(overlayText!);
+
+    // Add a pulsing glow effect
+    final glowText = TextComponent(
+      text: text,
+      textRenderer: TextPaint(
+        style: TextStyle(
+          color: const Color(0xFFFFD93D).withOpacity(0.4),
+          fontSize: 140.0,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 4.0,
+        ),
+      ),
+      anchor: Anchor.center,
+      position: Vector2(centerX, centerY), // Same center position
+      priority: 999,
+    );
+    add(glowText);
+
+    print(
+      'Showing countdown: "$text" at position: ${overlayText!.position}, screen size: $size',
+    );
+  }
+
   void _startGame() {
     gameState = GameState.playing;
     player.isGameActive = true;
     _hideOverlay();
+    _forceCleanupOverlays(); // Force cleanup when starting game
+  }
+
+  void _forceCleanupOverlays() {
+    // Force remove all overlay components regardless of priority
+    final allOverlayComponents = children
+        .where(
+          (child) =>
+              child is RectangleComponent ||
+              (child is TextComponent && child != scoreText),
+        )
+        .toList();
+
+    for (final component in allOverlayComponents) {
+      if (component != background && component != scoreText) {
+        remove(component);
+      }
+    }
+
+    overlayText = null;
+    print('Force cleaned up ${allOverlayComponents.length} components');
   }
 
   void _generatePlatform(Vector2 position) {
@@ -283,8 +442,16 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
     gameState = GameState.gameOver;
     player.isGameActive = false;
     player.velocity = Vector2.zero();
-    _hideOverlay();
-    _showOverlay('Game Over\nTap to Restart');
+
+    // Force cleanup any existing overlays first
+    _forceCleanupOverlays();
+
+    // Show game over text with a slight delay to ensure it appears
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (gameState == GameState.gameOver) {
+        _showOverlay('GAME OVER\n\nTap to Restart');
+      }
+    });
   }
 
   Future<void> resetGame() async {
@@ -355,6 +522,6 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
     }
 
     // Show the tap to start overlay
-    _showOverlay('Tap to Start');
+    _showOverlay('TAP TO START\n\n🎮');
   }
 }
