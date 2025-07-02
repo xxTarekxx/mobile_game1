@@ -522,6 +522,6 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
     }
 
     // Show the tap to start overlay
-    _showOverlay('TAP TO START\n\n🎮');
+    _showOverlay('TAP TO START');
   }
 }
