@@ -13,8 +13,8 @@ class Background extends ParallaxComponent {
     try {
       parallax = await Parallax.load(
         [ParallaxImageData('tiles/Mossy Tileset/background.webp')],
-        baseVelocity: Vector2(8, 0),
-        velocityMultiplierDelta: Vector2(1.3, 1.0),
+        baseVelocity: Vector2(6, 0), // A bit faster base velocity
+        velocityMultiplierDelta: Vector2(1.0, 1.0), // No speed increase
         fill: LayerFill.height,
         filterQuality: FilterQuality.none,
       );

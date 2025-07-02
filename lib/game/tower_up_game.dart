@@ -6,7 +6,6 @@ import 'package:flame/input.dart';
 import 'package:flutter/material.dart';
 
 import 'components/background.dart';
-import 'components/plant.dart';
 import 'components/platform.dart';
 import 'components/player.dart';
 
@@ -294,10 +293,6 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
     add(platform);
     platforms.add(platform);
     lastPlatformY = position.y;
-
-    if (platformsPassed > 1 && rand.nextDouble() < 0.4) {
-      _addPlantToPlatform(platform);
-    }
   }
 
   void _generateNextPlatform() {
@@ -339,41 +334,6 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
     _generatePlatform(Vector2(newX, newY));
   }
 
-  void _addPlantToPlatform(Platform platform) {
-    final plantData = _getPlantDataForLevel();
-    final plant = Plant(
-      plantType: plantData['type']!,
-      frameCount: plantData['frames']!,
-      position: Vector2(platform.size.x / 2, 0),
-    );
-    platform.add(plant);
-  }
-
-  Map<String, dynamic> _getPlantDataForLevel() {
-    int level = (platformsPassed ~/ 25) % 7 + 1;
-    switch (level) {
-      case 1:
-        return {
-          'type': 'Plant 1',
-          'frames': 90,
-        }; // Plant1 has 90 frames (00000-00089)
-      case 2:
-        return {'type': 'Plant 2', 'frames': 90}; // Plant2 has 90 frames
-      case 3:
-        return {'type': 'Plant 3', 'frames': 90}; // Plant3 has 90 frames
-      case 4:
-        return {'type': 'Plant 4', 'frames': 60}; // Plant4 has 60 frames
-      case 5:
-        return {'type': 'Plant 5', 'frames': 60}; // Plant5 has 60 frames
-      case 6:
-        return {'type': 'Plant 6', 'frames': 60}; // Plant6 has 60 frames
-      case 7:
-        return {'type': 'Plant 7', 'frames': 60}; // Plant7 has 60 frames
-      default:
-        return {'type': 'Plant 1', 'frames': 90};
-    }
-  }
-
   @override
   void update(double dt) {
     super.update(dt);
@@ -392,7 +352,8 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
       platform.position.x -= currentSpeed * dt;
     }
 
-    background.parallax?.baseVelocity.setValues(currentSpeed * 0.15, 0);
+    // Keep background at constant slow speed regardless of game progression
+    background.parallax?.baseVelocity.setValues(6, 0);
 
     platforms
         .where(
