@@ -32,8 +32,8 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
 
   double baseSpeed = 220;
   double get currentSpeed {
-    int milestone = platformsPassed ~/ 25;
-    return baseSpeed * (1 + milestone * 0.2);
+    int milestone = platformsPassed ~/ 10;
+    return baseSpeed * (1 + milestone * 0.3);
   }
 
   double get playerFixedX => size.x * 0.25;
@@ -313,11 +313,14 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
     final double tTotal = 2 * tUp;
     final double maxDx = playerSpeed * tTotal;
 
-    // Random horizontal gap within allowed range
+    // Scale platform gap with milestone
+    int milestone = platformsPassed ~/ 10;
+    double gapScale = 1 + milestone * 0.15;
     final dx =
-        minPlatformGapX +
+        (minPlatformGapX * gapScale) +
         rand.nextDouble() *
-            (math.min(maxPlatformGapX, maxDx) - minPlatformGapX);
+            ((math.min(maxPlatformGapX * gapScale, maxDx)) -
+                (minPlatformGapX * gapScale));
     final newX = prevTopRight.x + dx;
 
     // For this dx, calculate the max vertical difference the player can reach
