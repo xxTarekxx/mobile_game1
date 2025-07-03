@@ -7,12 +7,12 @@ class Platform extends SpriteComponent with CollisionCallbacks {
   bool hasBeenPassed = false;
 
   Platform({required Vector2 position})
-      : super(
-          position: position,
-          size: Vector2(236, 72),
-          anchor: Anchor.topLeft,
-          priority: -1,
-        );
+    : super(
+        position: position,
+        size: Vector2(236, 72),
+        anchor: Anchor.topLeft,
+        priority: -1,
+      );
 
   @override
   Future<void> onLoad() async {
@@ -27,22 +27,7 @@ class Platform extends SpriteComponent with CollisionCallbacks {
       ..collisionType = CollisionType.passive
       ..size = size
       ..position = Vector2.zero();
-    
+
     add(hitbox);
-  }
-
-  @override
-  void onCollisionStart(
-    Set<Vector2> intersectionPoints,
-    PositionComponent other,
-  ) {
-    super.onCollisionStart(intersectionPoints, other);
-  }
-
-  @override
-  void onCollisionEnd(
-    PositionComponent other,
-  ) {
-    super.onCollisionEnd(other);
   }
 }

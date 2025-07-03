@@ -309,25 +309,25 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
     final double jumpForce = 460; // Should match Player.jumpForce
     final double gravity = 950; // Should match Player.gravity
     final double playerSpeed = currentSpeed; // Use current horizontal speed
-    final double t_up = jumpForce / gravity;
-    final double t_total = 2 * t_up;
-    final double max_dx = playerSpeed * t_total;
+    final double tUp = jumpForce / gravity;
+    final double tTotal = 2 * tUp;
+    final double maxDx = playerSpeed * tTotal;
 
     // Random horizontal gap within allowed range
     final dx =
         minPlatformGapX +
         rand.nextDouble() *
-            (math.min(maxPlatformGapX, max_dx) - minPlatformGapX);
+            (math.min(maxPlatformGapX, maxDx) - minPlatformGapX);
     final newX = prevTopRight.x + dx;
 
     // For this dx, calculate the max vertical difference the player can reach
     // The jump parabola: y = v0y * t - 0.5 * g * t^2
     // t = dx / playerSpeed
     final t = dx / playerSpeed;
-    final max_dy = jumpForce * t - 0.5 * gravity * t * t;
+    final maxDy = jumpForce * t - 0.5 * gravity * t * t;
 
     // Clamp newY so the vertical gap is always reachable
-    double newY = lastPlatform.position.y - max_dy;
+    double newY = lastPlatform.position.y - maxDy;
     // Optionally, clamp to screen bounds
     newY = newY.clamp(size.y * 0.3, size.y * 0.8);
 
