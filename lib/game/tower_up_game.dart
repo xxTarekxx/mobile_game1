@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'components/background.dart';
 import 'components/platform.dart';
 import 'components/player.dart';
+import 'components/slime_orange.dart';
 
 enum GameState { waitingToStart, countdown, playing, gameOver }
 
@@ -18,7 +19,7 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
   int sessionSeed = 0;
   math.Random rand = math.Random();
 
-  int platformsPassed = 0;
+  int platformsGenerated = 0;
   GameState gameState = GameState.waitingToStart;
   int countdownValue = 3;
   Timer countdownTimer = Timer(1, repeat: true);
@@ -32,7 +33,7 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
 
   double baseSpeed = 220;
   double get currentSpeed {
-    int milestone = platformsPassed ~/ 10;
+    int milestone = platformsGenerated ~/ 10;
     return baseSpeed * (1 + milestone * 0.3);
   }
 
@@ -154,7 +155,7 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
       );
       add(overlayText!);
     }
-    print(
+    debugPrint(
       'Showing overlay: "$text" at center: ($centerX, $centerY), screen size: $size',
     );
   }
@@ -163,7 +164,7 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
     if (overlayText != null) {
       remove(overlayText!);
       overlayText = null;
-      print('Hiding overlay');
+      debugPrint('Hiding overlay');
     }
 
     // Remove ALL overlay-related components (backgrounds, glows, shadows)
@@ -179,7 +180,7 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
       remove(component);
     }
 
-    print('Cleaned up ${overlayComponents.length} overlay components');
+    debugPrint('Cleaned up ${overlayComponents.length} overlay components');
   }
 
   void _startCountdown() {
@@ -256,7 +257,7 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
     );
     add(glowText);
 
-    print(
+    debugPrint(
       'Showing countdown: "$text" at position: ${overlayText!.position}, screen size: $size',
     );
   }
@@ -285,14 +286,25 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
     }
 
     overlayText = null;
-    print('Force cleaned up ${allOverlayComponents.length} components');
+    debugPrint('Force cleaned up ${allOverlayComponents.length} components');
   }
 
-  void _generatePlatform(Vector2 position) {
+  void _generatePlatform(Vector2 position, {bool withSlime = false}) {
     final platform = Platform(position: position);
     add(platform);
     platforms.add(platform);
+    debugPrint(
+      'Platform generated at: \\$position, total: \\${platforms.length}',
+    );
     lastPlatformY = position.y;
+    platformsGenerated++;
+    if (withSlime) {
+      final slime = SlimeOrange(
+        position: Vector2(position.x + platform.size.x / 2, position.y),
+      ); // Centered on platform
+      add(slime); // Add directly to the game
+      debugPrint('Slime added to game at \\${slime.position}');
+    }
   }
 
   void _generateNextPlatform() {
@@ -314,7 +326,7 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
     final double maxDx = playerSpeed * tTotal;
 
     // Scale platform gap with milestone
-    int milestone = platformsPassed ~/ 10;
+    int milestone = platformsGenerated ~/ 10;
     double gapScale = 1 + milestone * 0.15;
     final dx =
         (minPlatformGapX * gapScale) +
@@ -334,7 +346,17 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
     // Optionally, clamp to screen bounds
     newY = newY.clamp(size.y * 0.3, size.y * 0.8);
 
-    _generatePlatform(Vector2(newX, newY));
+    // Determine if this platform should have a slime
+    bool withSlime = false;
+    int slimeStart = 5; // Start spawning after the 5th platform
+    if (platformsGenerated >= slimeStart &&
+        (platformsGenerated - slimeStart) % 5 == 0) {
+      withSlime = true;
+      debugPrint(
+        'Slime should spawn on platform $platformsGenerated at $newX, $newY',
+      );
+    }
+    _generatePlatform(Vector2(newX, newY), withSlime: withSlime);
   }
 
   @override
@@ -342,14 +364,14 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
     super.update(dt);
 
     // Update score text
-    scoreText.text = 'Platforms: $platformsPassed';
+    scoreText.text = 'Platforms: $platformsGenerated';
 
     if (gameState == GameState.countdown) {
       countdownTimer.update(dt);
       return;
     }
 
-    if (gameState != GameState.playing || player.isRemoved) return;
+    if (gameState != GameState.playing) return;
 
     for (final platform in platforms) {
       platform.position.x -= currentSpeed * dt;
@@ -364,22 +386,33 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
         )
         .forEach((p) {
           p.hasBeenPassed = true;
-          platformsPassed++;
         });
 
     platforms.removeWhere((p) {
       if (p.position.x + p.size.x < 0) {
         remove(p);
+        debugPrint(
+          'Platform removed at: \\${p.position}, total: \\${platforms.length - 1}',
+        );
         return true;
       }
       return false;
     });
+
+    // Ensure at least one platform always exists
+    if (platforms.isEmpty) {
+      _generatePlatform(Vector2(playerFixedX, size.y * 0.7));
+      debugPrint('Platform regenerated because list was empty!');
+    }
 
     if (platforms.isNotEmpty && platforms.last.position.x < size.x) {
       _generateNextPlatform();
     }
 
     if (player.position.y > size.y + player.size.y) {
+      debugPrint(
+        'Player Y: \\${player.position.y}, Limit: \\${size.y + player.size.y}',
+      );
       gameOver();
     }
   }
@@ -402,6 +435,7 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
   }
 
   void gameOver() {
+    debugPrint('Game state changing to gameOver');
     if (gameState == GameState.gameOver) return;
     gameState = GameState.gameOver;
     player.isGameActive = false;
@@ -413,12 +447,14 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
     // Show game over text with a slight delay to ensure it appears
     Future.delayed(const Duration(milliseconds: 100), () {
       if (gameState == GameState.gameOver) {
+        debugPrint('Showing GAME OVER overlay');
         _showOverlay('GAME OVER\n\nTap to Restart');
       }
     });
   }
 
   Future<void> resetGame() async {
+    debugPrint('Game state changing to waitingToStart (reset)');
     // Re-initialize rand with the same session seed for consistent platform generation
     rand = math.Random(sessionSeed);
 
@@ -452,7 +488,7 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
       'After selective removal: children = ${children.length}, platforms list = ${platforms.length}',
     );
 
-    platformsPassed = 0;
+    platformsGenerated = 0;
     gameState = GameState.waitingToStart;
 
     // Create player first

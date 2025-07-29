@@ -4,15 +4,18 @@ import 'dart:ui' as ui;
 
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
+import 'package:flame/events.dart';
 import 'package:flame/flame.dart';
 
 import '../tower_up_game.dart';
 import 'platform.dart';
+import 'player_projectile.dart';
 
 enum PlayerState { idle, walk, jump }
 
 class Player extends SpriteAnimationGroupComponent<PlayerState>
-    with HasGameReference<TowerUpGame>, CollisionCallbacks {
+    with HasGameReference<TowerUpGame>, CollisionCallbacks
+    implements DragCallbacks {
   Vector2 velocity = Vector2.zero();
   final double gravity = 950;
   final double jumpForce = 460;
@@ -20,6 +23,13 @@ class Player extends SpriteAnimationGroupComponent<PlayerState>
   bool isOnGround = false;
   bool isGameActive = false;
   bool _isCollidingWithPlatform = false;
+
+  Vector2? _dragStart;
+  bool _isDragged = false;
+  Vector2 _swipeDelta = Vector2.zero();
+
+  int _offGroundFrames = 0;
+  static const int offGroundThreshold = 2;
 
   Player()
     : super(size: Vector2(96, 128), anchor: Anchor.bottomCenter, priority: 1);
@@ -93,7 +103,15 @@ class Player extends SpriteAnimationGroupComponent<PlayerState>
   void update(double dt) {
     super.update(dt);
 
-    isOnGround = _isCollidingWithPlatform;
+    if (_isCollidingWithPlatform) {
+      _offGroundFrames = 0;
+      isOnGround = true;
+    } else {
+      _offGroundFrames++;
+      if (_offGroundFrames > offGroundThreshold) {
+        isOnGround = false;
+      }
+    }
     _isCollidingWithPlatform = false;
 
     // Lock player's x-position to stay visually in place
@@ -168,6 +186,47 @@ class Player extends SpriteAnimationGroupComponent<PlayerState>
     if (other is Platform) {
       // Only set to false if we're not colliding with any other platforms
       _isCollidingWithPlatform = false;
+    }
+  }
+
+  @override
+  bool get isDragged => _isDragged;
+
+  @override
+  void onDragStart(DragStartEvent event) {
+    _isDragged = true;
+    _dragStart = event.localPosition;
+    _swipeDelta = Vector2.zero();
+  }
+
+  @override
+  void onDragUpdate(DragUpdateEvent event) {
+    _swipeDelta += event.localDelta;
+    if (_swipeDelta.x > 50 && _swipeDelta.x.abs() > _swipeDelta.y.abs()) {
+      // Detected swipe right
+      _shootProjectile();
+      _swipeDelta = Vector2.zero();
+    }
+  }
+
+  @override
+  void onDragEnd(DragEndEvent event) {
+    _isDragged = false;
+    _dragStart = null;
+    _swipeDelta = Vector2.zero();
+  }
+
+  @override
+  void onDragCancel(DragCancelEvent event) {
+    _isDragged = false;
+    _dragStart = null;
+    _swipeDelta = Vector2.zero();
+  }
+
+  void _shootProjectile() {
+    if (isGameActive && game.gameState == GameState.playing) {
+      final projectile = PlayerProjectile(position: position.clone());
+      game.add(projectile);
     }
   }
 }
