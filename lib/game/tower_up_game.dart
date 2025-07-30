@@ -301,8 +301,8 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
     if (withSlime) {
       final slime = SlimeOrange(
         position: Vector2(position.x + platform.size.x / 2, position.y),
-      ); // Centered on platform
-      add(slime); // Add directly to the game
+      );
+      add(slime);
       debugPrint('Slime added to game at \\${slime.position}');
     }
   }
@@ -509,6 +509,10 @@ class TowerUpGame extends FlameGame with TapDetector, HasCollisionDetection {
                   rand.nextDouble() * (maxPlatformGapY - minPlatformGapY / 2))
               .clamp(size.y * 0.3, size.y * 0.8);
     }
+
+    // Reset the counter to 1 for the player's starting point
+    platformsGenerated = 1;
+    scoreText.text = 'Platforms: $platformsGenerated';
 
     // Wait a frame to ensure all platforms are properly loaded
     await Future.delayed(const Duration(milliseconds: 16));
